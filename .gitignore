@@ -1,0 +1,16 @@
+# Build
+target/
+bin/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env.local
