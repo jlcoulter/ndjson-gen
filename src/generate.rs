@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use fake::Fake;
 use rand::Rng;
 use serde::Serialize;
 use std::io::Write;
@@ -74,11 +75,12 @@ impl Record {
             city,
             state,
             zip,
-            amount: (rng.random_range(1.0..10000.0) * 100.0).round() / 100.0,
+            amount: {
+                let raw: f64 = rng.random_range(1.0..10000.0);
+                (raw * 100.0).round() / 100.0
+            },
             status: statuses[rng.random_range(0..statuses.len())].to_string(),
-            timestamp: format!(
-                "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"
-            ),
+            timestamp: format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"),
         }
     }
 }
