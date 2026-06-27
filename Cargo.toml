@@ -1,8 +1,8 @@
 [package]
-name = "rust-cli-template"
+name = "ndjson-gen"
 version = "0.1.0"
 edition = "2021"
-description = "A Rust CLI tool template"
+description = "Generate NDJSON files of a specified size with realistic fake data"
 license = "MIT"
 
 [dependencies]
@@ -13,6 +13,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+fake = { version = "4", features = ["derive"] }
+rand = "0.9"
 
 [dev-dependencies]
 assert_cmd = "2"

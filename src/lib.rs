@@ -1,3 +1,3 @@
-pub mod example;
+pub mod generate;
 
-pub use example::greet;
+pub use generate::Size;

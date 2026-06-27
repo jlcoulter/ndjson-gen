@@ -1,11 +1,12 @@
-mod example;
+mod generate;
 
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
-/// A Rust CLI tool template — replace this description.
+/// Generate NDJSON files of a specified size with realistic fake data.
 #[derive(Parser)]
-#[command(name = "rust-cli-template", version, about)]
+#[command(name = "ndjson-gen", version, about)]
 struct Cli {
     /// Enable verbose logging
     #[arg(short, long, global = true)]
@@ -17,11 +18,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run the example command
-    Example {
-        /// Name to greet
-        #[arg(default_value = "world")]
-        name: String,
+    /// Generate an NDJSON file of the given size
+    Generate {
+        /// Target file size (e.g. 10MB, 1GB, 512KB, or raw bytes)
+        size: String,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: PathBuf,
     },
 }
 
@@ -37,9 +41,9 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     match cli.command {
-        Commands::Example { name } => {
-            let result = example::greet(&name)?;
-            println!("{result}");
+        Commands::Generate { size, output } => {
+            let target = size.parse::<generate::Size>()?;
+            generate::generate(target, &output)?;
         }
     }
 
