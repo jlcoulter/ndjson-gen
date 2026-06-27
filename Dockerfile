@@ -8,5 +8,5 @@ RUN cargo build --release
 
 # Final stage
 FROM scratch
-COPY --from=builder /app/target/release/rust-cli-template /rust-cli-template
-ENTRYPOINT ["/rust-cli-template"]
+COPY --from=builder /app/target/release/ndjson-gen /ndjson-gen
+ENTRYPOINT ["/ndjson-gen"]

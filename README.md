@@ -1,96 +1,77 @@
-# Rust CLI Template
+# ndjson-gen
 
-A GitHub template for Rust CLI tools — clap arguments, anyhow errors, structured logging, tests, CI, and Docker included.
+Generate NDJSON files of a specified size with realistic fake data.
 
-## Features
-
-- **CLI framework** with [clap](https://clap.rs/) (derive API)
-- **Error handling** with [anyhow](https://docs.rs/anyhow) + custom error types with [thiserror](https://docs.rs/thiserror)
-- **Structured logging** with [tracing](https://docs.rs/tracing) + [tracing-subscriber](https://docs.rs/tracing-subscriber)
-- **Tests** — unit tests in `src/`, integration tests in `tests/`
-- **CI** via GitHub Actions (test, clippy, fmt, build on push/PR)
-- **Docker** multi-stage build (scratch image, ~3MB static binary)
-- **Makefile** for common tasks
+Creates newline-delimited JSON files where each line is a valid JSON object with randomized records — useful for benchmarks, test fixtures, and data pipeline development.
 
 ## Usage
 
-1. Click **"Use this template"** on GitHub to create a new repo
-2. Run the setup script:
-   ```sh
-   ./setup.sh mytool
-   ```
-3. Add your modules in `src/`
-4. Delete the example module when you have your own
+```sh
+# Generate a 10MB file
+ndjson-gen generate 10MB --output data.ndjson
 
-## Project Structure
+# Generate a 1GB file
+ndjson-gen generate 1GB --output big.ndjson
 
-```
-.
-├── src/
-│   ├── main.rs            # Entry point, clap CLI, dispatch
-│   ├── lib.rs             # Re-exports for integration tests
-│   └── example.rs         # Example module (delete me)
-├── tests/
-│   └── integration_test.rs # Integration tests
-├── .github/
-│   └── workflows/
-│       └── ci.yml          # Test + clippy + fmt
-├── Cargo.toml
-├── Dockerfile
-├── Makefile
-├── setup.sh
-└── README.md
+# Generate a 512KB file
+ndjson-gen generate 512KB --output small.ndjson
+
+# Specify size in raw bytes
+ndjson-gen generate 1048576 --output exact.ndjson
+
+# Verbose logging
+ndjson-gen generate 10MB --output data.ndjson -v
 ```
 
-## Quick Start
+### Size units
+
+| Unit | Meaning |
+|------|---------|
+| `B`  | Bytes |
+| `KB` | Kilobytes (1024 bytes) |
+| `MB` | Megabytes (1024² bytes) |
+| `GB` | Gigabytes (1024³ bytes) |
+
+No unit is interpreted as raw bytes. Case-insensitive.
+
+## Output format
+
+Each line is a JSON object:
+
+```json
+{"id":1,"name":"Alice Smith","email":"alice.smith@example.com","city":"Springfield","state":"IL","zip":"62704","amount":423.50,"status":"active","timestamp":"2024-03-15T14:22:08Z"}
+```
+
+The file size will meet or slightly exceed the target (by up to one record).
+
+## Install
 
 ```sh
-# Run locally
-make run
+cargo build --release
+# Binary at target/release/ndjson-gen
+```
 
-# Run tests
+Or pull the Docker image:
+
+```sh
+docker pull ghcr.io/jlcoulter/ndjson-gen:latest
+```
+
+## Test
+
+```sh
 make test
-
-# Build release binary
-make build
-
-# Build Docker image
-make docker
-
-# Lint
 make lint
 ```
 
-## Container Images
-
-CI builds and pushes a container image to GHCR on every push to any branch.
+## Docker
 
 ```sh
-# Pull the latest image
-docker pull ghcr.io/<owner>/rust-cli-template:latest
-
-# Pull a specific commit
-docker pull ghcr.io/<owner>/rust-cli-template:<sha>
-
-# Run
-docker run ghcr.io/<owner>/rust-cli-template:latest
+make docker
+docker run --rm -v $(pwd)/data:/data ndjson-gen generate 10MB --output /data/out.ndjson
 ```
 
-Replace `<owner>` with your GitHub username or org. Images are tagged with both `latest` and the commit SHA.
-
-## Adding a New Module
-
-```rust
-// src/mymodule.rs
-use anyhow::Result;
-
-pub fn do_thing(input: &str) -> Result<String> {
-    tracing::info!(input, "processing");
-    Ok(format!("processed: {input}"))
-}
-```
-
-Then add `mod mymodule;` to `src/lib.rs` and wire it into a clap subcommand in `src/main.rs`.
+Multi-arch images (amd64 + arm64) are built and pushed to GHCR on every push to `main`.
 
 ## License
 

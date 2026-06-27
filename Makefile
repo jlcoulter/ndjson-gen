@@ -1,11 +1,11 @@
-# Rust CLI — Makefile
+# ndjson-gen — Makefile
 
-BINARY := target/release/rust-cli-template
+BINARY := target/release/ndjson-gen
 
 .PHONY: run build test lint clippy fmt docker clean
 
 run:
-	cargo run -- example
+	cargo run -- generate 1KB --output /tmp/test.ndjson
 
 build:
 	cargo build --release
@@ -22,7 +22,7 @@ fmt:
 lint: fmt clippy
 
 docker:
-	docker build -t rust-cli-template .
+	docker build -t ndjson-gen .
 
 clean:
 	cargo clean
