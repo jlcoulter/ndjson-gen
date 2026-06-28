@@ -84,3 +84,78 @@ fn invalid_size_fails() {
         .assert()
         .failure();
 }
+
+#[test]
+fn zero_size_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("zero.ndjson");
+
+    Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate")
+        .arg("0")
+        .arg("--output")
+        .arg(output.to_str().unwrap())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn generate_to_stdout() {
+    let output = Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate")
+        .arg("1KB")
+        .arg("--stdout")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    for line in stdout.lines() {
+        assert!(
+            serde_json::from_str::<serde_json::Value>(line).is_ok(),
+            "invalid JSON on stdout: {line}"
+        );
+    }
+}
+
+#[test]
+fn output_and_stdout_conflict() {
+    Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate")
+        .arg("1KB")
+        .arg("--output")
+        .arg("/tmp/test.ndjson")
+        .arg("--stdout")
+        .assert()
+        .failure();
+}
+
+#[test]
+fn no_output_or_stdout_errors() {
+    Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate")
+        .arg("1KB")
+        .assert()
+        .failure();
+}
+
+#[test]
+fn seed_flag_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("seeded.ndjson");
+    let output_str = output.to_str().unwrap();
+
+    Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate")
+        .arg("1KB")
+        .arg("--output")
+        .arg(output_str)
+        .arg("--seed")
+        .arg("42")
+        .assert()
+        .success();
+}

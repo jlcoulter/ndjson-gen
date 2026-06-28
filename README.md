@@ -19,8 +19,14 @@ ndjson-gen generate 512KB --output small.ndjson
 # Specify size in raw bytes
 ndjson-gen generate 1048576 --output exact.ndjson
 
+# Write to stdout (pipe-friendly)
+ndjson-gen generate 1MB --stdout | head -n 5
+
 # Verbose logging
 ndjson-gen generate 10MB --output data.ndjson -v
+
+# Seed for reproducible output
+ndjson-gen generate 10MB --output data.ndjson --seed 42
 ```
 
 ### Size units
@@ -43,6 +49,24 @@ Each line is a JSON object:
 ```
 
 The file size will meet or slightly exceed the target (by up to one record).
+
+## Library
+
+This crate can also be used as a library:
+
+```rust
+use ndjson_gen::{generate, generate_into, Size};
+use std::str::FromStr;
+
+let target = Size::from_str("10MB").unwrap();
+
+// Write to a file
+generate(target, std::path::Path::new("output.ndjson")).unwrap();
+
+// Write to any Write sink
+let mut buf: Vec<u8> = Vec::new();
+generate_into(target, &mut buf).unwrap();
+```
 
 ## Install
 
