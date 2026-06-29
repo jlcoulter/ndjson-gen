@@ -21,6 +21,9 @@ ndjson-gen generate 1048576 --output exact.ndjson
 
 # Verbose logging
 ndjson-gen generate 10MB --output data.ndjson -v
+
+# Generate from OpenAPI schema
+ndjson-gen generate-openapi 10MB --spec openapi.yaml --schema Order --output orders.ndjson
 ```
 
 ### Size units
@@ -41,6 +44,8 @@ Each line is a JSON object:
 ```json
 {"id":1,"name":"Alice Smith","email":"alice.smith@example.com","city":"Springfield","state":"IL","zip":"62704","amount":423.50,"status":"active","timestamp":"2024-03-15T14:22:08Z"}
 ```
+
+OpenAPI mode generates each record from the selected schema in `components/schemas`, filling fields with randomized values while honoring common schema constraints like enums, arrays, numbers, and nested objects.
 
 The file size will meet or slightly exceed the target (by up to one record).
 
