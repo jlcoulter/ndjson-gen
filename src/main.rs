@@ -27,6 +27,23 @@ enum Commands {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Generate NDJSON from an OpenAPI schema
+    GenerateOpenapi {
+        /// Target file size (e.g. 10MB, 1GB, 512KB, or raw bytes)
+        size: String,
+
+        /// OpenAPI spec file path (.yaml, .yml, or .json)
+        #[arg(short = 'p', long)]
+        spec: PathBuf,
+
+        /// Name of schema under components/schemas
+        #[arg(short = 's', long)]
+        schema: String,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: PathBuf,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -44,6 +61,15 @@ fn main() -> anyhow::Result<()> {
         Commands::Generate { size, output } => {
             let target = size.parse::<generate::Size>()?;
             generate::generate(target, &output)?;
+        }
+        Commands::GenerateOpenapi {
+            size,
+            spec,
+            schema,
+            output,
+        } => {
+            let target = size.parse::<generate::Size>()?;
+            generate::generate_from_openapi(target, &output, &spec, &schema)?;
         }
     }
 

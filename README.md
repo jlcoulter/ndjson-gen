@@ -21,6 +21,12 @@ ndjson-gen generate 1048576 --output exact.ndjson
 
 # Verbose logging
 ndjson-gen generate 10MB --output data.ndjson -v
+
+# Generate from OpenAPI 3 components/schemas
+ndjson-gen generate-openapi 10MB --spec openapi.yaml --schema Order --output orders.ndjson
+
+# Generate from Swagger 2 definitions (petstore style)
+ndjson-gen generate-openapi 10MB --spec petstore.json --schema Pet --output Petstore.ndjson
 ```
 
 ### Size units
@@ -41,6 +47,26 @@ Each line is a JSON object:
 ```json
 {"id":1,"name":"Alice Smith","email":"alice.smith@example.com","city":"Springfield","state":"IL","zip":"62704","amount":423.50,"status":"active","timestamp":"2024-03-15T14:22:08Z"}
 ```
+
+OpenAPI mode generates each record from the selected schema in `components/schemas`, filling fields with randomized values while honoring common schema constraints like enums, arrays, numbers, and nested objects.
+
+## OpenAPI Support
+
+`generate-openapi` supports schema extraction from:
+
+- OpenAPI 3.x: `components/schemas`
+- Swagger 2.0: `definitions`
+
+Supported `$ref` formats:
+
+- `#/components/schemas/<SchemaName>`
+- `#/definitions/<SchemaName>`
+
+Notes:
+
+- The selected schema name must exist under the spec's schema container.
+- Specs can be JSON or YAML.
+- `generate-openapi` reads schemas only; unsupported operation/parameter shapes in `paths` do not block generation as long as schemas are valid.
 
 The file size will meet or slightly exceed the target (by up to one record).
 
