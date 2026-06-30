@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use fake::Fake;
-use openapiv3::{OpenAPI, RefOr, Schema, SchemaKind, Type};
+use openapiv3::{ReferenceOr, Schema, SchemaKind, Type};
 use rand::Rng;
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -120,9 +121,14 @@ pub fn generate(target: Size, output: &Path) -> Result<()> {
 }
 
 /// Generate NDJSON from an OpenAPI schema under `components/schemas`.
-pub fn generate_from_openapi(target: Size, output: &Path, spec: &Path, schema_name: &str) -> Result<()> {
-    let api = parse_openapi(spec)?;
-    let schema = root_schema(&api, schema_name)?;
+pub fn generate_from_openapi(
+    target: Size,
+    output: &Path,
+    spec: &Path,
+    schema_name: &str,
+) -> Result<()> {
+    let schemas = parse_schemas(spec)?;
+    let schema = root_schema(&schemas, schema_name)?;
 
     let mut file = std::fs::File::create(output)
         .with_context(|| format!("cannot create {}", output.display()))?;
@@ -131,8 +137,9 @@ pub fn generate_from_openapi(target: Size, output: &Path, spec: &Path, schema_na
     let mut records: u64 = 0;
 
     while written < target.bytes {
-        let value = generate_value_from_schema(&api, schema, &mut rng, 0)?;
-        let mut line = serde_json::to_string(&value).with_context(|| "serializing OpenAPI record")?;
+        let value = generate_value_from_schema(&schemas, schema, &mut rng, 0)?;
+        let mut line =
+            serde_json::to_string(&value).with_context(|| "serializing OpenAPI record")?;
         line.push('\n');
         file.write_all(line.as_bytes())
             .with_context(|| "writing OpenAPI record")?;
@@ -153,66 +160,90 @@ pub fn generate_from_openapi(target: Size, output: &Path, spec: &Path, schema_na
     Ok(())
 }
 
-fn parse_openapi(spec: &Path) -> Result<OpenAPI> {
-    let text = fs::read_to_string(spec)
-        .with_context(|| format!("cannot read spec {}", spec.display()))?;
+struct SchemaStore {
+    schemas: BTreeMap<String, ReferenceOr<Schema>>,
+}
 
-    let parsed_json = serde_json::from_str::<OpenAPI>(&text);
-    if let Ok(api) = parsed_json {
-        return Ok(api);
+fn parse_schemas(spec: &Path) -> Result<SchemaStore> {
+    let text =
+        fs::read_to_string(spec).with_context(|| format!("cannot read spec {}", spec.display()))?;
+
+    let raw = serde_json::from_str::<Value>(&text)
+        .or_else(|_| serde_yaml::from_str::<Value>(&text))
+        .with_context(|| format!("spec {} is not valid OpenAPI JSON or YAML", spec.display()))?;
+
+    let root = raw
+        .as_object()
+        .with_context(|| format!("spec {} root must be an object", spec.display()))?;
+
+    let schema_obj = if let Some(components) = root.get("components").and_then(Value::as_object) {
+        components
+            .get("schemas")
+            .and_then(Value::as_object)
+            .context("spec does not include components/schemas")?
+    } else {
+        root.get("definitions")
+            .and_then(Value::as_object)
+            .context("spec does not include components/schemas or definitions")?
+    };
+
+    let mut schemas = BTreeMap::new();
+    for (name, schema_value) in schema_obj {
+        let parsed = serde_json::from_value::<ReferenceOr<Schema>>(schema_value.clone())
+            .with_context(|| format!("schema '{}' is invalid", name))?;
+        schemas.insert(name.clone(), parsed);
     }
 
-    serde_yaml::from_str::<OpenAPI>(&text)
-        .with_context(|| format!("spec {} is not valid OpenAPI JSON or YAML", spec.display()))
+    Ok(SchemaStore { schemas })
 }
 
-fn root_schema<'a>(api: &'a OpenAPI, schema_name: &str) -> Result<&'a Schema> {
-    let components = api
-        .components
-        .as_ref()
-        .context("spec does not include components")?;
+fn root_schema<'a>(store: &'a SchemaStore, schema_name: &str) -> Result<&'a Schema> {
+    let schema_ref = store.schemas.get(schema_name).with_context(|| {
+        format!(
+            "schema '{}' was not found in components/schemas or definitions",
+            schema_name
+        )
+    })?;
 
-    let schema_ref = components
-        .schemas
-        .get(schema_name)
-        .with_context(|| format!("schema '{}' was not found in components/schemas", schema_name))?;
-
-    resolve_schema_ref(api, schema_ref)
+    resolve_schema_ref(store, schema_ref)
 }
 
-fn resolve_schema_ref<'a>(api: &'a OpenAPI, schema_ref: &'a RefOr<Schema>) -> Result<&'a Schema> {
+fn resolve_schema_ref<'a>(
+    store: &'a SchemaStore,
+    schema_ref: &'a ReferenceOr<Schema>,
+) -> Result<&'a Schema> {
     match schema_ref {
-        RefOr::Item(schema) => Ok(schema),
-        RefOr::Reference { reference } => resolve_schema_path(api, reference),
+        ReferenceOr::Item(schema) => Ok(schema),
+        ReferenceOr::Reference { reference } => resolve_schema_path(store, reference),
     }
 }
 
-fn resolve_boxed_schema_ref<'a>(api: &'a OpenAPI, schema_ref: &'a RefOr<Box<Schema>>) -> Result<&'a Schema> {
+fn resolve_boxed_schema_ref<'a>(
+    store: &'a SchemaStore,
+    schema_ref: &'a ReferenceOr<Box<Schema>>,
+) -> Result<&'a Schema> {
     match schema_ref {
-        RefOr::Item(schema) => Ok(schema.as_ref()),
-        RefOr::Reference { reference } => resolve_schema_path(api, reference),
+        ReferenceOr::Item(schema) => Ok(schema.as_ref()),
+        ReferenceOr::Reference { reference } => resolve_schema_path(store, reference),
     }
 }
 
-fn resolve_schema_path<'a>(api: &'a OpenAPI, reference: &str) -> Result<&'a Schema> {
+fn resolve_schema_path<'a>(store: &'a SchemaStore, reference: &str) -> Result<&'a Schema> {
     let name = reference
         .strip_prefix("#/components/schemas/")
+        .or_else(|| reference.strip_prefix("#/definitions/"))
         .with_context(|| format!("unsupported schema reference: {reference}"))?;
 
-    let components = api
-        .components
-        .as_ref()
-        .context("spec does not include components")?;
-    let schema_ref = components
+    let schema_ref = store
         .schemas
         .get(name)
         .with_context(|| format!("referenced schema '{}' was not found", name))?;
 
-    resolve_schema_ref(api, schema_ref)
+    resolve_schema_ref(store, schema_ref)
 }
 
 fn generate_value_from_schema(
-    api: &OpenAPI,
+    store: &SchemaStore,
     schema: &Schema,
     rng: &mut impl Rng,
     depth: usize,
@@ -235,7 +266,9 @@ fn generate_value_from_schema(
                 let last = fake::faker::name::en::LastName().fake::<String>();
                 let domain = fake::faker::internet::en::DomainSuffix().fake::<String>();
                 match format!("{:?}", string_type.format).as_str() {
-                    "Email" => Value::String(format!("{first}.{last}@example.{domain}").to_lowercase()),
+                    "Email" => {
+                        Value::String(format!("{first}.{last}@example.{domain}").to_lowercase())
+                    }
                     "Date" => {
                         let year: u32 = rng.random_range(2020..=2026);
                         let month: u32 = rng.random_range(1..=12);
@@ -263,16 +296,24 @@ fn generate_value_from_schema(
             }
             Value::from(rng.random_range(min..=max))
         }
-        SchemaKind::Type(Type::Boolean {}) => Value::Bool(rng.random()),
+        SchemaKind::Type(Type::Boolean(_)) => Value::Bool(rng.random()),
         SchemaKind::Type(Type::Array(array_type)) => {
             let min_items = array_type.min_items.unwrap_or(1).max(1);
-            let max_items = array_type.max_items.unwrap_or((min_items + 2).min(5)).max(min_items);
+            let max_items = array_type
+                .max_items
+                .unwrap_or((min_items + 2).min(5))
+                .max(min_items);
             let len = rng.random_range(min_items..=max_items);
             let mut values = Vec::with_capacity(len);
             if let Some(item_ref) = &array_type.items {
-                let item_schema = resolve_boxed_schema_ref(api, item_ref)?;
+                let item_schema = resolve_boxed_schema_ref(store, item_ref)?;
                 for _ in 0..len {
-                    values.push(generate_value_from_schema(api, item_schema, rng, depth + 1)?);
+                    values.push(generate_value_from_schema(
+                        store,
+                        item_schema,
+                        rng,
+                        depth + 1,
+                    )?);
                 }
             }
             Value::Array(values)
@@ -280,10 +321,10 @@ fn generate_value_from_schema(
         SchemaKind::Type(Type::Object(object_type)) => {
             let mut map = Map::new();
             for (name, prop_ref) in &object_type.properties {
-                let prop_schema = resolve_boxed_schema_ref(api, prop_ref)?;
+                let prop_schema = resolve_boxed_schema_ref(store, prop_ref)?;
                 map.insert(
                     name.clone(),
-                    generate_value_from_schema(api, prop_schema, rng, depth + 1)?,
+                    generate_value_from_schema(store, prop_schema, rng, depth + 1)?,
                 );
             }
             Value::Object(map)
@@ -293,8 +334,8 @@ fn generate_value_from_schema(
                 Value::Null
             } else {
                 let selected = &one_of[rng.random_range(0..one_of.len())];
-                let selected_schema = resolve_schema_ref(api, selected)?;
-                generate_value_from_schema(api, selected_schema, rng, depth + 1)?
+                let selected_schema = resolve_schema_ref(store, selected)?;
+                generate_value_from_schema(store, selected_schema, rng, depth + 1)?
             }
         }
         SchemaKind::AnyOf { any_of } => {
@@ -302,15 +343,15 @@ fn generate_value_from_schema(
                 Value::Null
             } else {
                 let selected = &any_of[rng.random_range(0..any_of.len())];
-                let selected_schema = resolve_schema_ref(api, selected)?;
-                generate_value_from_schema(api, selected_schema, rng, depth + 1)?
+                let selected_schema = resolve_schema_ref(store, selected)?;
+                generate_value_from_schema(store, selected_schema, rng, depth + 1)?
             }
         }
         SchemaKind::AllOf { all_of } => {
             let mut merged = Map::new();
             for schema_ref in all_of {
-                let child = resolve_schema_ref(api, schema_ref)?;
-                let value = generate_value_from_schema(api, child, rng, depth + 1)?;
+                let child = resolve_schema_ref(store, schema_ref)?;
+                let value = generate_value_from_schema(store, child, rng, depth + 1)?;
                 if let Value::Object(obj) = value {
                     for (k, v) in obj {
                         merged.insert(k, v);
@@ -422,5 +463,20 @@ mod tests {
         assert!(size >= 1024, "file should be at least target size");
         // Shouldn't overshoot by more than one record (~200 bytes)
         assert!(size < 1024 + 512, "file shouldn't overshoot too much");
+    }
+
+    #[test]
+    fn generate_from_swagger2_definitions() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("petstore.ndjson");
+        let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("petstore.json");
+
+        generate_from_openapi(Size { bytes: 256 }, &output, &spec, "Pet").unwrap();
+
+        let contents = std::fs::read_to_string(output).unwrap();
+        assert!(!contents.is_empty());
+        for line in contents.lines() {
+            assert!(serde_json::from_str::<serde_json::Value>(line).is_ok());
+        }
     }
 }

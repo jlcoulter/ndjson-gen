@@ -87,13 +87,13 @@ fn invalid_size_fails() {
 
 #[test]
 fn generate_openapi_creates_valid_ndjson() {
-        let dir = tempfile::tempdir().unwrap();
-        let spec = dir.path().join("spec.yaml");
-        let output = dir.path().join("openapi.ndjson");
+    let dir = tempfile::tempdir().unwrap();
+    let spec = dir.path().join("spec.yaml");
+    let output = dir.path().join("openapi.ndjson");
 
-        std::fs::write(
-                &spec,
-                r#"openapi: 3.0.3
+    std::fs::write(
+        &spec,
+        r#"openapi: 3.0.3
 info:
     title: NDJSON Test
     version: 1.0.0
@@ -124,31 +124,31 @@ components:
                             minimum: 0
                             maximum: 1
 "#,
-        )
-        .unwrap();
+    )
+    .unwrap();
 
-        Command::cargo_bin("ndjson-gen")
-                .unwrap()
-                .arg("generate-openapi")
-                .arg("2KB")
-                .arg("--spec")
-                .arg(spec.to_str().unwrap())
-                .arg("--schema")
-                .arg("Event")
-                .arg("--output")
-                .arg(output.to_str().unwrap())
-                .assert()
-                .success();
+    Command::cargo_bin("ndjson-gen")
+        .unwrap()
+        .arg("generate-openapi")
+        .arg("2KB")
+        .arg("--spec")
+        .arg(spec.to_str().unwrap())
+        .arg("--schema")
+        .arg("Event")
+        .arg("--output")
+        .arg(output.to_str().unwrap())
+        .assert()
+        .success();
 
-        let contents = fs::read_to_string(&output).unwrap();
-        assert!(!contents.is_empty());
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(!contents.is_empty());
 
-        for line in contents.lines() {
-                let parsed: serde_json::Value = serde_json::from_str(line).unwrap();
-                assert!(parsed.get("id").is_some());
-                assert!(parsed.get("status").is_some());
-                assert!(parsed.get("active").is_some());
-                assert!(parsed.get("tags").is_some());
-                assert!(parsed.get("nested").is_some());
-        }
+    for line in contents.lines() {
+        let parsed: serde_json::Value = serde_json::from_str(line).unwrap();
+        assert!(parsed.get("id").is_some());
+        assert!(parsed.get("status").is_some());
+        assert!(parsed.get("active").is_some());
+        assert!(parsed.get("tags").is_some());
+        assert!(parsed.get("nested").is_some());
+    }
 }

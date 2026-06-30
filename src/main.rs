@@ -33,11 +33,11 @@ enum Commands {
         size: String,
 
         /// OpenAPI spec file path (.yaml, .yml, or .json)
-        #[arg(short, long)]
+        #[arg(short = 'p', long)]
         spec: PathBuf,
 
         /// Name of schema under components/schemas
-        #[arg(short, long)]
+        #[arg(short = 's', long)]
         schema: String,
 
         /// Output file path
