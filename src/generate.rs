@@ -468,11 +468,11 @@ mod tests {
     #[test]
     fn generate_from_swagger2_definitions() {
         let dir = tempfile::tempdir().unwrap();
-                let spec = dir.path().join("swagger2.json");
+        let spec = dir.path().join("swagger2.json");
         let output = dir.path().join("petstore.ndjson");
-                std::fs::write(
-                        &spec,
-                        r#"{
+        std::fs::write(
+            &spec,
+            r#"{
     "swagger": "2.0",
     "info": {
         "title": "Test API",
@@ -505,8 +505,8 @@ mod tests {
         }
     }
 }"#,
-                )
-                .unwrap();
+        )
+        .unwrap();
 
         generate_from_openapi(Size { bytes: 256 }, &output, &spec, "Pet").unwrap();
 
