@@ -468,8 +468,45 @@ mod tests {
     #[test]
     fn generate_from_swagger2_definitions() {
         let dir = tempfile::tempdir().unwrap();
+                let spec = dir.path().join("swagger2.json");
         let output = dir.path().join("petstore.ndjson");
-        let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("petstore.json");
+                std::fs::write(
+                        &spec,
+                        r#"{
+    "swagger": "2.0",
+    "info": {
+        "title": "Test API",
+        "version": "1.0.0"
+    },
+    "paths": {},
+    "definitions": {
+        "Pet": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["available", "pending", "sold"]
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}"#,
+                )
+                .unwrap();
 
         generate_from_openapi(Size { bytes: 256 }, &output, &spec, "Pet").unwrap();
 
